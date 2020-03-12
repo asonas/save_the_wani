@@ -1,6 +1,7 @@
 require 'twitter'
 require 'pp'
 require 'pry'
+require 'fileutils'
 
 class SaveTheWani
   AUTHOR = "yuukikikuchi"
@@ -16,8 +17,12 @@ class SaveTheWani
   end
 
   def self.run
-    new.search
-    p @collection.map(&:media_url)
+    new.run
+  end
+
+  def run
+    search
+    dump
   end
 
   def search
@@ -30,10 +35,30 @@ class SaveTheWani
         text: tweet.text,
         media_url: tweet.media.first.media_url
       )
-      binding.pry
       @collection.push t
     end
   end
+
+  def dump
+    download
+    dump_json
+  end
+
+  def dump_json
+    hash = @collection(&:to_hash)
+    JSON.fast_generate(hash)
+  end
+
+  def download
+    FileUtils.mkdir_p 'assets'
+    @collection.each do |t|
+      system 'wget',
+        t.media_url,
+        "-Passets"
+    end
+  end
+
+  def dump
 
   class Tweet
     attr_accessor :id, :text, :media_url
@@ -43,9 +68,25 @@ class SaveTheWani
       @text = text
       @media_url = media_url
     end
+
+    def to_hash
+      h = {
+        id: @id,
+        text: @text,
+        media_url: @media_url,
+        save_path: save_path
+      }
+    end
+
+    def file_name
+      uri = URI.parse @media_url
+      uri.path.sub('/', '')
+    end
+
+    def save_path
+      "assets/#{file_name}"
+    end
   end
 end
 
 SaveTheWani.run
-
-
