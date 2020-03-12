@@ -2,6 +2,7 @@ require 'twitter'
 require 'pp'
 require 'pry'
 require 'fileutils'
+require 'google/cloud/vision'
 
 class SaveTheWani
   #初日だけフォーマットが違うので例外として扱う
@@ -24,9 +25,23 @@ class SaveTheWani
 
   def run
     search
-    dump_json
-    download_image
+    #download_image
     check
+    annotation
+
+    dump_json
+  end
+
+  def annotation
+    annotator = Google::Cloud::Vision::ImageAnnotator.new
+    @collection.each do |tweet|
+      res = annotator.text_detection(image: tweet.file_path).responses
+      res.each do |res|
+        res.text_annotations.each do |text|
+          tweet.media_descriptions.push text.description
+        end
+      end
+    end
   end
 
   def search
@@ -67,30 +82,33 @@ class SaveTheWani
   def download_image
     FileUtils.mkdir_p 'assets'
     @collection.each do |t|
-      p t.media_url
       system 'wget',
         t.media_url,
         "-O",
-        t.save_path
+        t.file_path
     end
   end
 
   class Tweet
-    attr_accessor :id, :text, :media_url
+    attr_accessor :id, :text, :media_url, :media_descriptions
 
     def initialize(id:, text:, media_url:)
       @id = id
       @text = text
       @media_url = media_url
+      @media_descriptions = []
     end
 
     def to_hash
       h = {
         id: @id,
         text: @text,
-        media_url: @media_url,
         day: day,
-        save_path: save_path
+        file_path: file_path,
+        media: {
+          url: @media_url,
+          descriotions: @media_descriptions
+        }
       }
     end
 
@@ -99,7 +117,7 @@ class SaveTheWani
       uri.path.sub('/media/', '')
     end
 
-    def save_path
+    def file_path
       "assets/#{file_name}"
     end
 
